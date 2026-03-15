@@ -6,6 +6,7 @@ import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
 import rehypeRaw from "rehype-raw";
 import { markdownToLinkedIn, markdownToHtml } from "@/lib/converter";
+import { resolveForPreview, isUploadRef } from "@/lib/images";
 
 interface PreviewPanelProps {
   markdown: string;
@@ -119,6 +120,18 @@ export default function PreviewPanel({
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}
               rehypePlugins={[rehypeHighlight, rehypeRaw]}
+              components={{
+                img: ({ src, alt, ...props }) => {
+                  const s = typeof src === "string" ? src : "";
+                  return (
+                    <img
+                      {...props}
+                      src={isUploadRef(s) ? resolveForPreview(s) : s}
+                      alt={alt || ""}
+                    />
+                  );
+                },
+              }}
             >
               {markdown}
             </ReactMarkdown>

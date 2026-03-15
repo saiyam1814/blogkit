@@ -19,6 +19,7 @@ import {
   extractTitle,
   isConnected,
 } from "@/lib/converter";
+import { resolveForPublish } from "@/lib/images";
 
 interface PublishBarProps {
   markdown: string;
@@ -81,13 +82,15 @@ export default function PublishBar({
     try {
       const tokens = JSON.parse(localStorage.getItem("blogkit_tokens") || "{}");
       const title = extractTitle(markdown);
+      // Resolve upload:// image refs to base64 for publishing
+      const resolvedMarkdown = await resolveForPublish(markdown);
 
       const res = await fetch(`/api/publish/${platform}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title,
-          markdown,
+          markdown: resolvedMarkdown,
           tags: [],
           token: tokens[platform],
           published: false,
@@ -157,7 +160,10 @@ export default function PublishBar({
             onClick={() => publishTo("devto")}
           />
           <button
-            onClick={() => copyRichHtml(markdownToMediumHtml(markdown), "Medium HTML")}
+            onClick={async () => {
+              const resolved = await resolveForPublish(markdown);
+              copyRichHtml(markdownToMediumHtml(resolved), "Medium HTML");
+            }}
             className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-white rounded-lg transition-colors bg-green-700 hover:bg-green-600"
           >
             <Copy size={13} />

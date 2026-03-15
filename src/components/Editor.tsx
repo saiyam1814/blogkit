@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useCallback } from "react";
+import React, { useRef, useCallback, useState } from "react";
 import {
   Bold,
   Italic,
@@ -14,8 +14,10 @@ import {
   Upload,
   FileUp,
   ClipboardPaste,
+  Info,
 } from "lucide-react";
 import { htmlToMarkdown } from "@/lib/converter";
+import { storeImage } from "@/lib/images";
 
 interface EditorProps {
   value: string;
@@ -51,8 +53,23 @@ const TOOLBAR_ACTIONS: ToolbarAction[] = [
 export default function Editor({ value, onChange }: EditorProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
-  const [isDragging, setIsDragging] = React.useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [showImageMenu, setShowImageMenu] = useState(false);
+  const [imageUrlInput, setImageUrlInput] = useState("");
   const cursorPosRef = useRef<{ start: number; end: number }>({ start: 0, end: 0 });
+
+  // Close image menu when clicking outside
+  React.useEffect(() => {
+    if (!showImageMenu) return;
+    const handleClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest("[data-image-menu]")) {
+        setShowImageMenu(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [showImageMenu]);
 
   // Save cursor position whenever textarea is focused/clicked/typed
   const saveCursorPos = () => {
@@ -95,42 +112,10 @@ export default function Editor({ value, onChange }: EditorProps) {
     [value, onChange]
   );
 
-  const uploadImageToHashnode = async (file: File): Promise<string | null> => {
-    try {
-      const tokens = JSON.parse(localStorage.getItem("blogkit_tokens") || "{}");
-      if (!tokens.hashnode) return null;
-
-      // Get publication ID first
-      const meRes = await fetch("/api/publish/hashnode", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "get-upload-url", token: tokens.hashnode }),
-      });
-
-      // Use Hashnode's image upload via presigned URL
-      // For now, convert to base64 data URL as a reliable fallback
-      return null;
-    } catch {
-      return null;
-    }
-  };
-
   const handleImageUpload = async (file: File) => {
-    // Try Hashnode CDN upload first
-    const cdnUrl = await uploadImageToHashnode(file);
-
-    if (cdnUrl) {
-      insertImageAtCursor(file.name, cdnUrl);
-    } else {
-      // Fallback: convert to base64 data URL (works in preview, but large)
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        if (ev.target?.result) {
-          insertImageAtCursor(file.name, ev.target.result as string);
-        }
-      };
-      reader.readAsDataURL(file);
-    }
+    // Store image in memory, get a clean upload:// reference
+    const ref = storeImage(file);
+    insertImageAtCursor(file.name, ref);
   };
 
   const insertImageAtCursor = (name: string, url: string) => {
@@ -254,14 +239,67 @@ export default function Editor({ value, onChange }: EditorProps) {
       <div className="flex items-center gap-1 px-3 py-2 bg-slate-800 border-b border-slate-700 flex-wrap">
         {TOOLBAR_ACTIONS.map((action) => (
           action.label === "Image" ? (
-            <button
-              key={action.label}
-              onClick={() => imageInputRef.current?.click()}
-              title="Upload image"
-              className="p-1.5 rounded hover:bg-slate-700 text-slate-400 hover:text-slate-200 transition-colors"
-            >
-              {action.icon}
-            </button>
+            <div key={action.label} className="relative" data-image-menu>
+              <button
+                onClick={() => setShowImageMenu(!showImageMenu)}
+                title="Insert image"
+                className="p-1.5 rounded hover:bg-slate-700 text-slate-400 hover:text-slate-200 transition-colors"
+              >
+                {action.icon}
+              </button>
+              {showImageMenu && (
+                <div className="absolute top-full left-0 mt-1 w-72 bg-slate-800 border border-slate-600 rounded-lg shadow-xl z-20 p-3 space-y-3">
+                  <div>
+                    <label className="text-xs font-medium text-slate-300 mb-1 block">Paste image URL (recommended)</label>
+                    <div className="flex gap-1.5">
+                      <input
+                        type="text"
+                        value={imageUrlInput}
+                        onChange={(e) => setImageUrlInput(e.target.value)}
+                        placeholder="https://i.imgur.com/..."
+                        className="flex-1 px-2 py-1.5 bg-slate-900 border border-slate-600 rounded text-xs text-slate-200 placeholder-slate-500 outline-none focus:border-blue-500"
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && imageUrlInput.trim()) {
+                            const name = imageUrlInput.split("/").pop() || "image";
+                            insertImageAtCursor(name, imageUrlInput.trim());
+                            setImageUrlInput("");
+                            setShowImageMenu(false);
+                          }
+                        }}
+                      />
+                      <button
+                        onClick={() => {
+                          if (imageUrlInput.trim()) {
+                            const name = imageUrlInput.split("/").pop() || "image";
+                            insertImageAtCursor(name, imageUrlInput.trim());
+                            setImageUrlInput("");
+                            setShowImageMenu(false);
+                          }
+                        }}
+                        className="px-2 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs rounded transition-colors"
+                      >
+                        Add
+                      </button>
+                    </div>
+                  </div>
+                  <div className="border-t border-slate-700 pt-2">
+                    <button
+                      onClick={() => {
+                        imageInputRef.current?.click();
+                        setShowImageMenu(false);
+                      }}
+                      className="w-full text-left px-2 py-1.5 text-xs text-slate-400 hover:text-slate-200 hover:bg-slate-700 rounded transition-colors"
+                    >
+                      Upload from device (session only — preview works, converts to base64 on publish)
+                    </button>
+                  </div>
+                  <div className="flex items-start gap-1.5 text-[10px] text-slate-500 leading-snug">
+                    <Info size={12} className="mt-0.5 shrink-0" />
+                    <span>For permanent images, host on GitHub, Imgur, or any CDN and paste the URL. Uploaded files are stored in your browser session only.</span>
+                  </div>
+                </div>
+              )}
+            </div>
           ) : (
             <button
               key={action.label}
@@ -357,6 +395,9 @@ export default function Editor({ value, onChange }: EditorProps) {
           <div className="absolute inset-0 bg-blue-500/20 border-2 border-dashed border-blue-400 rounded flex items-center justify-center z-10">
             <div className="text-blue-300 text-lg font-medium">
               Drop .md file or image here
+            </div>
+            <div className="text-blue-400/60 text-xs mt-1">
+              Images stored in session only
             </div>
           </div>
         )}
