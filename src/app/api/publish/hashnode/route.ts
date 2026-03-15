@@ -16,22 +16,22 @@ export async function POST(req: NextRequest) {
         Authorization: token,
       },
       body: JSON.stringify({
-        query: `query { me { publications(first: 1) { edges { node { id } } } } }`,
+        query: `query { me { publications(first: 1) { edges { node { id url } } } } }`,
       }),
     });
 
     const meData = await meRes.json();
-    const publicationId = meData?.data?.me?.publications?.edges?.[0]?.node?.id;
+    const publication = meData?.data?.me?.publications?.edges?.[0]?.node;
 
-    if (!publicationId) {
+    if (!publication?.id) {
       return NextResponse.json(
         { success: false, error: "Could not find your Hashnode publication. Make sure you have a blog set up." },
         { status: 400 }
       );
     }
 
-    // Publish the post
-    const publishRes = await fetch("https://gql.hashnode.com", {
+    // Create a draft (not publish directly)
+    const draftRes = await fetch("https://gql.hashnode.com", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -39,12 +39,12 @@ export async function POST(req: NextRequest) {
       },
       body: JSON.stringify({
         query: `
-          mutation PublishPost($input: PublishPostInput!) {
-            publishPost(input: $input) {
-              post {
+          mutation CreateDraft($input: CreateDraftInput!) {
+            createDraft(input: $input) {
+              draft {
                 id
-                url
                 title
+                slug
               }
             }
           }
@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
           input: {
             title,
             contentMarkdown: markdown,
-            publicationId,
+            publicationId: publication.id,
             tags: tags?.length
               ? tags.map((t: string) => ({ slug: t.toLowerCase().replace(/\s+/g, "-"), name: t }))
               : [],
@@ -62,20 +62,26 @@ export async function POST(req: NextRequest) {
       }),
     });
 
-    const publishData = await publishRes.json();
+    const draftData = await draftRes.json();
 
-    if (publishData.errors) {
+    if (draftData.errors) {
       return NextResponse.json(
-        { success: false, error: publishData.errors[0]?.message || "Hashnode API error" },
+        { success: false, error: draftData.errors[0]?.message || "Hashnode API error" },
         { status: 400 }
       );
     }
 
-    const post = publishData?.data?.publishPost?.post;
+    const draft = draftData?.data?.createDraft?.draft;
+    // Link to the draft in Hashnode dashboard
+    const draftUrl = draft?.id
+      ? `${publication.url}/draft/${draft.id}`
+      : "";
+
     return NextResponse.json({
       success: true,
-      url: post?.url || "",
-      id: post?.id || "",
+      url: draftUrl,
+      id: draft?.id || "",
+      isDraft: true,
     });
   } catch (error) {
     return NextResponse.json(

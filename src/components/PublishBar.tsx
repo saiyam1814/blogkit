@@ -82,7 +82,7 @@ export default function PublishBar({
     try {
       const tokens = JSON.parse(localStorage.getItem("blogkit_tokens") || "{}");
       const title = extractTitle(markdown);
-      // Resolve upload:// image refs to base64 for publishing
+      // Resolve blob image URLs to base64 for publishing
       const resolvedMarkdown = await resolveForPublish(markdown);
 
       const res = await fetch(`/api/publish/${platform}`, {
@@ -99,7 +99,7 @@ export default function PublishBar({
 
       const data = await res.json();
       if (data.success) {
-        showToast(`Published to ${platform}! ${data.url || ""}`, "success");
+        showToast(`Draft created on ${platform}! ${data.url || ""}`, "success");
       } else {
         showToast(`Failed: ${data.error || "Unknown error"}`, "error");
       }
@@ -279,7 +279,7 @@ function PublishButton({
       ) : (
         <Settings size={13} />
       )}
-      {publishing ? "Publishing..." : connected ? label : `Connect ${label}`}
+      {publishing ? "Creating draft..." : connected ? label : `Connect ${label}`}
     </button>
   );
 }
