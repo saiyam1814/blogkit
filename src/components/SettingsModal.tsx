@@ -25,13 +25,6 @@ const PLATFORMS = [
     tokenUrl: "https://dev.to/settings/extensions",
     hint: "Settings → Extensions → DEV Community API Keys",
   },
-  {
-    id: "medium",
-    name: "Medium",
-    color: "bg-green-700",
-    tokenUrl: "https://medium.com/me/settings/security",
-    hint: "Settings → Security → Integration tokens",
-  },
 ];
 
 export default function SettingsModal({ isOpen, onClose, onSave }: SettingsModalProps) {

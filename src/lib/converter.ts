@@ -199,7 +199,7 @@ export function markdownToLinkedIn(md: string): string {
   return text.trim();
 }
 
-// Basic markdown to HTML (for clipboard)
+// Basic markdown to HTML (for clipboard / HTML export)
 export function markdownToHtml(md: string): string {
   let html = md;
 
@@ -240,6 +240,88 @@ export function markdownToHtml(md: string): string {
   html = html.replace(/^---$/gm, "<hr>");
 
   return html;
+}
+
+// Rich HTML for Medium paste — styled so formatting survives Medium's paste handler
+export function markdownToMediumHtml(md: string): string {
+  let html = md;
+
+  // Remove HTML comments
+  html = html.replace(/<!--[\s\S]*?-->/g, "");
+
+  // Code blocks → styled <pre> that Medium preserves
+  html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_m, _lang, code) => {
+    const escaped = escapeHtml(code.trim());
+    return `<pre style="background:#f4f4f4;padding:16px;border-radius:4px;font-family:Menlo,Monaco,Consolas,monospace;font-size:14px;overflow-x:auto;white-space:pre;"><code>${escaped}</code></pre>`;
+  });
+
+  // Inline code
+  html = html.replace(/`([^`]+)`/g, '<code style="background:#f4f4f4;padding:2px 6px;border-radius:3px;font-family:Menlo,Monaco,Consolas,monospace;font-size:0.9em;">$1</code>');
+
+  // Tables → HTML table (Medium renders these as plain text but keeps structure)
+  html = html.replace(/^(\|.+\|)\n\|[-:| ]+\|\n((?:\|.+\|\n?)*)/gm, (_m, headerRow, bodyRows) => {
+    const headers = headerRow.split("|").filter((c: string) => c.trim()).map((c: string) => `<th style="border:1px solid #ddd;padding:8px 12px;background:#f5f5f5;font-weight:bold;">${c.trim()}</th>`);
+    const rows = bodyRows.trim().split("\n").map((row: string) => {
+      const cells = row.split("|").filter((c: string) => c.trim()).map((c: string) => `<td style="border:1px solid #ddd;padding:8px 12px;">${c.trim()}</td>`);
+      return `<tr>${cells.join("")}</tr>`;
+    });
+    return `<table style="border-collapse:collapse;width:100%;margin:1em 0;"><thead><tr>${headers.join("")}</tr></thead><tbody>${rows.join("")}</tbody></table>`;
+  });
+
+  // Headers
+  html = html.replace(/^#### (.+)$/gm, "<h4>$1</h4>");
+  html = html.replace(/^### (.+)$/gm, "<h3>$1</h3>");
+  html = html.replace(/^## (.+)$/gm, "<h2>$1</h2>");
+  html = html.replace(/^# (.+)$/gm, "<h1>$1</h1>");
+
+  // Bold and italic (bold first to avoid conflict)
+  html = html.replace(/\*\*\*(.+?)\*\*\*/g, "<strong><em>$1</em></strong>");
+  html = html.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+  html = html.replace(/\*(.+?)\*/g, "<em>$1</em>");
+
+  // Images → full <figure> with caption for Medium
+  html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_m, alt, src) => {
+    const caption = alt && alt !== "alt" ? `<figcaption>${escapeHtml(alt)}</figcaption>` : "";
+    return `<figure><img src="${src}" alt="${escapeHtml(alt)}" style="max-width:100%;">${caption}</figure>`;
+  });
+
+  // Links
+  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
+
+  // Blockquotes (collect consecutive > lines into one blockquote)
+  html = html.replace(/(^>\s*.+$\n?)+/gm, (block) => {
+    const text = block.replace(/^>\s*/gm, "").trim().replace(/\n/g, "<br>");
+    return `<blockquote style="border-left:3px solid #292929;padding:0 20px;margin:1em 0;font-style:italic;color:#555;">${text}</blockquote>`;
+  });
+
+  // Ordered lists
+  html = html.replace(/(^\d+\.\s+.+$\n?)+/gm, (block) => {
+    const items = block.trim().split("\n").map((line) => {
+      const text = line.replace(/^\d+\.\s+/, "");
+      return `<li>${text}</li>`;
+    });
+    return `<ol>${items.join("")}</ol>`;
+  });
+
+  // Unordered lists
+  html = html.replace(/(^- .+$\n?)+/gm, (block) => {
+    const items = block.trim().split("\n").map((line) => {
+      const text = line.replace(/^- /, "");
+      return `<li>${text}</li>`;
+    });
+    return `<ul>${items.join("")}</ul>`;
+  });
+
+  // HR
+  html = html.replace(/^---$/gm, "<hr>");
+
+  // Paragraphs — wrap remaining loose lines
+  html = html.replace(/^(?!<[hpuolbfdt]|<li|<pre|<img|<block|<hr|<fig|<table)(.+)$/gm, "<p>$1</p>");
+
+  // Clean up empty lines
+  html = html.replace(/\n{2,}/g, "\n");
+
+  return html.trim();
 }
 
 function escapeHtml(str: string): string {

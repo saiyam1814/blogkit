@@ -70,7 +70,6 @@ export default function Home() {
   const [connectedPlatforms, setConnectedPlatforms] = useState<Record<string, boolean>>({
     hashnode: false,
     devto: false,
-    medium: false,
   });
 
   useEffect(() => {
@@ -78,7 +77,6 @@ export default function Home() {
     setConnectedPlatforms({
       hashnode: Boolean(tokens.hashnode?.trim()),
       devto: Boolean(tokens.devto?.trim()),
-      medium: Boolean(tokens.medium?.trim()),
     });
   }, []);
 
@@ -86,7 +84,6 @@ export default function Home() {
     setConnectedPlatforms({
       hashnode: Boolean(tokens.hashnode?.trim()),
       devto: Boolean(tokens.devto?.trim()),
-      medium: Boolean(tokens.medium?.trim()),
     });
   };
 

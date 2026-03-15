@@ -15,6 +15,7 @@ import {
 import {
   markdownToLinkedIn,
   markdownToHtml,
+  markdownToMediumHtml,
   extractTitle,
   isConnected,
 } from "@/lib/converter";
@@ -49,6 +50,24 @@ export default function PublishBar({
       showToast(`${label} copied to clipboard!`, "success");
     } catch {
       showToast("Failed to copy to clipboard", "error");
+    }
+  };
+
+  const copyRichHtml = async (html: string, label: string) => {
+    try {
+      const blob = new Blob([html], { type: "text/html" });
+      const textBlob = new Blob([html], { type: "text/plain" });
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          "text/html": blob,
+          "text/plain": textBlob,
+        }),
+      ]);
+      showToast(`${label} copied! Paste into Medium with Cmd/Ctrl+V`, "success");
+    } catch {
+      // Fallback to plain text copy
+      await navigator.clipboard.writeText(html);
+      showToast(`${label} copied as text (rich paste not supported in this browser)`, "success");
     }
   };
 
@@ -137,13 +156,13 @@ export default function PublishBar({
             color="bg-slate-600 hover:bg-slate-500"
             onClick={() => publishTo("devto")}
           />
-          <PublishButton
-            label="Medium"
-            connected={connectedPlatforms.medium}
-            publishing={publishing === "medium"}
-            color="bg-green-700 hover:bg-green-600"
-            onClick={() => publishTo("medium")}
-          />
+          <button
+            onClick={() => copyRichHtml(markdownToMediumHtml(markdown), "Medium HTML")}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-white rounded-lg transition-colors bg-green-700 hover:bg-green-600"
+          >
+            <Copy size={13} />
+            Copy for Medium
+          </button>
         </div>
 
         <div className="w-px h-6 bg-slate-600 mx-1" />
