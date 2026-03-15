@@ -119,6 +119,7 @@ export default function PreviewPanel({
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}
               rehypePlugins={[rehypeHighlight, rehypeRaw]}
+              urlTransform={(url) => url}
             >
               {markdown}
             </ReactMarkdown>
