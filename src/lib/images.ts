@@ -26,6 +26,15 @@ export function isUploadRef(src: string): boolean {
   return src.startsWith("upload://");
 }
 
+// Replace all upload:// refs in markdown with blob URLs for preview
+export function resolveAllForPreview(markdown: string): string {
+  return markdown.replace(/upload:\/\/[^)\s]+/g, (ref) => {
+    const id = ref.replace("upload://", "");
+    const entry = store.get(id);
+    return entry?.blobUrl || ref;
+  });
+}
+
 function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();

@@ -6,7 +6,7 @@ import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
 import rehypeRaw from "rehype-raw";
 import { markdownToLinkedIn, markdownToHtml } from "@/lib/converter";
-import { resolveForPreview, isUploadRef } from "@/lib/images";
+import { resolveAllForPreview } from "@/lib/images";
 
 interface PreviewPanelProps {
   markdown: string;
@@ -88,6 +88,9 @@ export default function PreviewPanel({
   activeTab,
   onTabChange,
 }: PreviewPanelProps) {
+  // Resolve upload:// refs to blob URLs for preview display
+  const previewMarkdown = resolveAllForPreview(markdown);
+
   return (
     <div className="flex flex-col h-full bg-white rounded-lg overflow-hidden border border-slate-200">
       <style dangerouslySetInnerHTML={{ __html: hashnodeStyles + devtoStyles + mediumStyles }} />
@@ -112,28 +115,16 @@ export default function PreviewPanel({
       {/* Preview content */}
       <div className="flex-1 overflow-y-auto p-6">
         {activeTab === "linkedin" ? (
-          <LinkedInPreview markdown={markdown} />
+          <LinkedInPreview markdown={previewMarkdown} />
         ) : activeTab === "html" ? (
-          <HtmlPreview markdown={markdown} />
+          <HtmlPreview markdown={previewMarkdown} />
         ) : (
           <div className={`preview-${activeTab} max-w-none`}>
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}
               rehypePlugins={[rehypeHighlight, rehypeRaw]}
-              components={{
-                img: ({ src, alt, ...props }) => {
-                  const s = typeof src === "string" ? src : "";
-                  return (
-                    <img
-                      {...props}
-                      src={isUploadRef(s) ? resolveForPreview(s) : s}
-                      alt={alt || ""}
-                    />
-                  );
-                },
-              }}
             >
-              {markdown}
+              {previewMarkdown}
             </ReactMarkdown>
           </div>
         )}
