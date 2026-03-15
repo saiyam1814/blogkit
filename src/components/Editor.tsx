@@ -112,10 +112,10 @@ export default function Editor({ value, onChange }: EditorProps) {
     [value, onChange]
   );
 
-  const handleImageUpload = async (file: File) => {
-    // Store image in memory, get a clean upload:// reference
-    const ref = storeImage(file);
-    insertImageAtCursor(file.name, ref);
+  const handleImageUpload = (file: File) => {
+    // Create a blob URL — works natively in <img> tags for preview
+    const blobUrl = storeImage(file);
+    insertImageAtCursor(file.name, blobUrl);
   };
 
   const insertImageAtCursor = (name: string, url: string) => {
@@ -290,7 +290,7 @@ export default function Editor({ value, onChange }: EditorProps) {
                       }}
                       className="w-full text-left px-2 py-1.5 text-xs text-slate-400 hover:text-slate-200 hover:bg-slate-700 rounded transition-colors"
                     >
-                      Upload from device (session only — preview works, converts to base64 on publish)
+                      Upload from device (session only — converts to base64 on publish)
                     </button>
                   </div>
                   <div className="flex items-start gap-1.5 text-[10px] text-slate-500 leading-snug">

@@ -6,7 +6,6 @@ import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
 import rehypeRaw from "rehype-raw";
 import { markdownToLinkedIn, markdownToHtml } from "@/lib/converter";
-import { resolveAllForPreview } from "@/lib/images";
 
 interface PreviewPanelProps {
   markdown: string;
@@ -88,9 +87,6 @@ export default function PreviewPanel({
   activeTab,
   onTabChange,
 }: PreviewPanelProps) {
-  // Resolve upload:// refs to blob URLs for preview display
-  const previewMarkdown = resolveAllForPreview(markdown);
-
   return (
     <div className="flex flex-col h-full bg-white rounded-lg overflow-hidden border border-slate-200">
       <style dangerouslySetInnerHTML={{ __html: hashnodeStyles + devtoStyles + mediumStyles }} />
@@ -115,16 +111,16 @@ export default function PreviewPanel({
       {/* Preview content */}
       <div className="flex-1 overflow-y-auto p-6">
         {activeTab === "linkedin" ? (
-          <LinkedInPreview markdown={previewMarkdown} />
+          <LinkedInPreview markdown={markdown} />
         ) : activeTab === "html" ? (
-          <HtmlPreview markdown={previewMarkdown} />
+          <HtmlPreview markdown={markdown} />
         ) : (
           <div className={`preview-${activeTab} max-w-none`}>
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}
               rehypePlugins={[rehypeHighlight, rehypeRaw]}
             >
-              {previewMarkdown}
+              {markdown}
             </ReactMarkdown>
           </div>
         )}
