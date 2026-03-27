@@ -181,21 +181,32 @@ export default function Editor({ value, onChange }: EditorProps) {
     }
   };
 
-  const handleDocxUpload = (file: File) => {
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      if (ev.target?.result) {
-        // .docx files are ZIP archives, we can't parse them client-side easily
-        // Instead, read as text for .doc (HTML-based) files
-        const content = ev.target.result as string;
-        if (content.includes("<html") || content.includes("<body")) {
-          onChange(htmlToMarkdown(content));
-        } else {
-          onChange(content);
+  const handleDocxUpload = async (file: File) => {
+    const name = file.name.toLowerCase();
+    if (name.endsWith(".html") || name.endsWith(".htm")) {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        if (ev.target?.result) {
+          onChange(htmlToMarkdown(ev.target.result as string));
         }
+      };
+      reader.readAsText(file);
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("file", file);
+    try {
+      const res = await fetch("/api/convert/doc", { method: "POST", body: formData });
+      const data = await res.json();
+      if (data.html) {
+        onChange(htmlToMarkdown(data.html));
+      } else {
+        alert(data.error || "Failed to convert document");
       }
-    };
-    reader.readAsText(file);
+    } catch {
+      alert("Failed to convert document. Please try a .docx file.");
+    }
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -355,13 +366,13 @@ export default function Editor({ value, onChange }: EditorProps) {
         </label>
         <label
           className="flex items-center gap-1.5 px-2 py-1 rounded text-xs text-slate-400 hover:bg-slate-700 hover:text-slate-200 cursor-pointer transition-colors"
-          title="Upload .doc file (HTML-based Word doc)"
+          title="Upload Word document (.docx, .doc, or .html)"
         >
           <FileUp size={14} />
-          <span>.doc</span>
+          <span>.docx</span>
           <input
             type="file"
-            accept=".doc,.html,.htm"
+            accept=".docx,.doc,.html,.htm"
             className="hidden"
             onChange={(e) => {
               const file = e.target.files?.[0];
