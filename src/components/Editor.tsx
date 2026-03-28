@@ -182,25 +182,13 @@ export default function Editor({ value, onChange }: EditorProps) {
   };
 
   const handleDocxUpload = async (file: File) => {
-    const name = file.name.toLowerCase();
-    if (name.endsWith(".html") || name.endsWith(".htm")) {
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        if (ev.target?.result) {
-          onChange(htmlToMarkdown(ev.target.result as string));
-        }
-      };
-      reader.readAsText(file);
-      return;
-    }
-
     const formData = new FormData();
     formData.append("file", file);
     try {
       const res = await fetch("/api/convert/doc", { method: "POST", body: formData });
       const data = await res.json();
-      if (data.html) {
-        onChange(htmlToMarkdown(data.html));
+      if (data.markdown) {
+        onChange(data.markdown);
       } else {
         alert(data.error || "Failed to convert document");
       }

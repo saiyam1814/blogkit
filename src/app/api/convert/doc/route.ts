@@ -2,6 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import mammoth from "mammoth";
 // @ts-expect-error no type declarations
 import WordExtractor from "word-extractor";
+import TurndownService from "turndown";
+
+const turndown = new TurndownService({
+  headingStyle: "atx",
+  codeBlockStyle: "fenced",
+  bulletListMarker: "-",
+});
 
 export async function POST(req: NextRequest) {
   try {
@@ -15,22 +22,18 @@ export async function POST(req: NextRequest) {
     const buffer = Buffer.from(await file.arrayBuffer());
     const name = file.name.toLowerCase();
 
-    let html = "";
+    let markdown = "";
 
     if (name.endsWith(".docx")) {
       const result = await mammoth.convertToHtml({ buffer });
-      html = result.value;
+      markdown = turndown.turndown(result.value);
     } else if (name.endsWith(".doc")) {
       const extractor = new WordExtractor();
       const doc = await extractor.extract(buffer);
-      // word-extractor returns plain text; wrap paragraphs in <p> tags
-      const body = doc.getBody();
-      html = body
-        .split(/\n/)
-        .map((line: string) => (line.trim() ? `<p>${line}</p>` : ""))
-        .join("\n");
+      markdown = doc.getBody();
     } else if (name.endsWith(".html") || name.endsWith(".htm")) {
-      html = buffer.toString("utf-8");
+      const html = buffer.toString("utf-8");
+      markdown = turndown.turndown(html);
     } else {
       return NextResponse.json(
         { error: "Unsupported file type" },
@@ -38,7 +41,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    return NextResponse.json({ html });
+    return NextResponse.json({ markdown });
   } catch (err) {
     console.error("Document conversion error:", err);
     return NextResponse.json(
