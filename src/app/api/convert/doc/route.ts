@@ -8,6 +8,27 @@ const turndown = new TurndownService({
   headingStyle: "atx",
   codeBlockStyle: "fenced",
   bulletListMarker: "-",
+  emDelimiter: "*",
+  strongDelimiter: "**",
+});
+
+// Reduce over-escaping: turndown escapes too many chars which breaks Hashnode
+turndown.escape = (str: string) => {
+  return str
+    .replace(/\\/g, "\\\\")
+    .replace(/\[/g, "\\[")
+    .replace(/\]/g, "\\]");
+};
+
+// Strip mammoth-generated data-URI images (huge base64 blobs Hashnode won't use)
+turndown.addRule("dataUriImages", {
+  filter: (node) =>
+    node.nodeName === "IMG" &&
+    (node.getAttribute("src") || "").startsWith("data:"),
+  replacement: (_content, node) => {
+    const alt = (node as HTMLElement).getAttribute("alt") || "image";
+    return `![${alt}]()`;
+  },
 });
 
 // Map common Word code/preformatted styles to <pre> so turndown picks them up
@@ -49,7 +70,6 @@ function wrapDetectedCodeBlocks(md: string): string {
   let codeBuffer: string[] = [];
 
   function flushCode() {
-    // Pull trailing blank lines out of the buffer
     const trailingBlanks: string[] = [];
     while (codeBuffer.length > 0 && !codeBuffer[codeBuffer.length - 1].trim()) {
       trailingBlanks.unshift(codeBuffer.pop()!);
@@ -64,7 +84,6 @@ function wrapDetectedCodeBlocks(md: string): string {
   }
 
   for (const line of lines) {
-    // Respect existing fenced code blocks
     if (/^```/.test(line.trim())) {
       flushCode();
       inExistingCodeBlock = !inExistingCodeBlock;
@@ -80,7 +99,6 @@ function wrapDetectedCodeBlocks(md: string): string {
     if (isCodeLine(line)) {
       codeBuffer.push(line);
     } else if (!line.trim() && codeBuffer.length > 0) {
-      // Blank line while buffering code — keep it (might separate commands)
       codeBuffer.push(line);
     } else {
       flushCode();
@@ -90,6 +108,46 @@ function wrapDetectedCodeBlocks(md: string): string {
 
   flushCode();
   return result.join("\n");
+}
+
+/** Clean up markdown to be well-formed for platforms like Hashnode */
+function cleanMarkdown(md: string): string {
+  let clean = md;
+
+  // Normalize line endings
+  clean = clean.replace(/\r\n/g, "\n");
+
+  // Collapse 3+ consecutive blank lines to 2
+  clean = clean.replace(/\n{3,}/g, "\n\n");
+
+  // Ensure blank line before headings (but not at start of file)
+  clean = clean.replace(/([^\n])\n(#{1,6} )/g, "$1\n\n$2");
+
+  // Ensure blank line after headings
+  clean = clean.replace(/(#{1,6} .+)\n([^\n#>-])/g, "$1\n\n$2");
+
+  // Ensure blank line before code fences
+  clean = clean.replace(/([^\n])\n(```)/g, "$1\n\n$2");
+
+  // Ensure blank line after closing code fences
+  clean = clean.replace(/(```)\n([^\n`])/g, "$1\n\n$2");
+
+  // Ensure blank line before list starts (not between list items)
+  clean = clean.replace(/([^\n-*\d])\n([-*] |\d+\. )/g, "$1\n\n$2");
+
+  // Ensure blank line after lists (before non-list content)
+  clean = clean.replace(/([-*] .+|^\d+\. .+)\n([^\n\-*\d \t])/gm, "$1\n\n$2");
+
+  // Ensure blank line before blockquotes
+  clean = clean.replace(/([^\n>])\n(> )/g, "$1\n\n$2");
+
+  // Remove trailing whitespace on each line
+  clean = clean.replace(/[ \t]+$/gm, "");
+
+  // Collapse again in case cleanup introduced extra blanks
+  clean = clean.replace(/\n{3,}/g, "\n\n");
+
+  return clean.trim() + "\n";
 }
 
 export async function POST(req: NextRequest) {
@@ -126,8 +184,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Post-process: detect CLI commands and wrap in code fences
+    // Post-process
     markdown = wrapDetectedCodeBlocks(markdown);
+    markdown = cleanMarkdown(markdown);
 
     return NextResponse.json({ markdown });
   } catch (err) {
