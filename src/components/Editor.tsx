@@ -188,7 +188,19 @@ export default function Editor({ value, onChange }: EditorProps) {
       const res = await fetch("/api/convert/doc", { method: "POST", body: formData });
       const data = await res.json();
       if (data.markdown) {
-        onChange(data.markdown);
+        let md = data.markdown;
+        // Convert extracted docx images to blob URLs (same as manual uploads)
+        if (data.images?.length) {
+          for (const img of data.images) {
+            const bytes = atob(img.base64);
+            const arr = new Uint8Array(bytes.length);
+            for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
+            const blob = new Blob([arr], { type: img.contentType });
+            const blobUrl = URL.createObjectURL(blob);
+            md = md.split(img.id).join(blobUrl);
+          }
+        }
+        onChange(md);
       } else {
         alert(data.error || "Failed to convert document");
       }

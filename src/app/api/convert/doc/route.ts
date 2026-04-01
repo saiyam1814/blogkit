@@ -20,17 +20,6 @@ turndown.escape = (str: string) => {
     .replace(/\]/g, "\\]");
 };
 
-// Strip mammoth-generated data-URI images (huge base64 blobs Hashnode won't use)
-turndown.addRule("dataUriImages", {
-  filter: (node) =>
-    node.nodeName === "IMG" &&
-    (node.getAttribute("src") || "").startsWith("data:"),
-  replacement: (_content, node) => {
-    const alt = (node as HTMLElement).getAttribute("alt") || "image";
-    return `![${alt}]()`;
-  },
-});
-
 // Map common Word code/preformatted styles to <pre> so turndown picks them up
 const codeStyleMap = [
   "p[style-name='Code'] => pre:separator('\\n')",
@@ -163,11 +152,22 @@ export async function POST(req: NextRequest) {
     const name = file.name.toLowerCase();
 
     let markdown = "";
+    const images: Array<{ id: string; contentType: string; base64: string }> = [];
 
     if (name.endsWith(".docx")) {
+      let imgIdx = 0;
       const result = await mammoth.convertToHtml(
         { buffer },
-        { styleMap: codeStyleMap },
+        {
+          styleMap: codeStyleMap,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          convertImage: mammoth.images.imgElement(async (image: any) => {
+            const base64 = await image.read("base64");
+            const id = `docximg://${imgIdx++}`;
+            images.push({ id, contentType: image.contentType, base64 });
+            return { src: id };
+          }),
+        },
       );
       markdown = turndown.turndown(result.value);
     } else if (name.endsWith(".doc")) {
@@ -188,7 +188,7 @@ export async function POST(req: NextRequest) {
     markdown = wrapDetectedCodeBlocks(markdown);
     markdown = cleanMarkdown(markdown);
 
-    return NextResponse.json({ markdown });
+    return NextResponse.json({ markdown, images });
   } catch (err) {
     console.error("Document conversion error:", err);
     return NextResponse.json(
